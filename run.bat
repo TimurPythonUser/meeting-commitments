@@ -25,7 +25,7 @@ if not errorlevel 1 (
 if not exist "%PY%" (
     echo.
     echo [ПОМИЛКА] Не знайдено %PY%
-    echo Запускати треба з кореня проєкту, venv має бути на місці.
+    echo Спочатку запустіть install.bat — він створить venv і поставить залежності.
     echo.
     pause
     exit /b 1
@@ -34,7 +34,18 @@ if not exist "%PY%" (
 if not defined DEEPSEEK_API_KEY (
     echo.
     echo [ПОМИЛКА] DEEPSEEK_API_KEY не заданий.
-    echo Додай рядок DEEPSEEK_API_KEY=sk-... у файл .env поруч із цим run.bat
+    echo Додайте рядок DEEPSEEK_API_KEY=sk-... у файл .env поруч із цим run.bat
+    echo.
+    pause
+    exit /b 1
+)
+
+REM .env створюється з .env.example, де стоїть заглушка. Якщо її не замінили,
+REM сервер підніметься, але витягування зобовʼязань впаде вже після обробки.
+if "%DEEPSEEK_API_KEY%"=="sk-..." (
+    echo.
+    echo [ПОМИЛКА] У .env лишилася заглушка замість справжнього ключа.
+    echo Впишіть DEEPSEEK_API_KEY з https://platform.deepseek.com
     echo.
     pause
     exit /b 1

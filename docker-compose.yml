@@ -1,0 +1,70 @@
+# Запуск в Docker — и локально, и на сервере.
+#
+#   Локально (приложение на http://localhost:8000):
+#       docker compose up -d --build
+#
+#   На сервере, с HTTPS и паролем (нужны DOMAIN и BASIC_AUTH_HASH в .env):
+#       docker compose --profile public up -d --build
+#
+# Сборка тянет torch и веса моделей — первый раз это 10-20 минут и ~5 ГБ.
+# HF_TOKEN передаётся секретом сборки и в слои образа не попадает.
+
+services:
+  app:
+    build:
+      context: .
+      secrets:
+        - hf_token
+    image: meeting-commitments
+    container_name: commitments
+    env_file: .env
+    environment:
+      # На сервере сторож присутствия страницы должен молчать: иначе
+      # закрытая вкладка способна погасить сервис.
+      SHUTDOWN_ON_DISCONNECT: "${SHUTDOWN_ON_DISCONNECT:-0}"
+    ports:
+      # Наружу отдаёт Caddy. Без него приложение доступно на localhost:8000.
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-8000}:8000"
+    restart: unless-stopped
+    networks: [commitments]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 180s
+      retries: 3
+
+  caddy:
+    image: caddy:2
+    container_name: caddy
+    # Поднимается только с --profile public: локально HTTPS не нужен.
+    profiles: [public]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # Без DOMAIN и BASIC_AUTH_HASH в .env Caddy не стартует и скажет об
+      # этом в логах. Жёсткую проверку (:?) здесь ставить нельзя: compose
+      # разворачивает переменные всех сервисов, даже отключённых профилем,
+      # и локальный запуск без Caddy переставал работать.
+      DOMAIN: "${DOMAIN:-}"
+      BASIC_AUTH_USER: "${BASIC_AUTH_USER:-demo}"
+      BASIC_AUTH_HASH: "${BASIC_AUTH_HASH:-}"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [app]
+    restart: unless-stopped
+    networks: [commitments]
+
+secrets:
+  hf_token:
+    environment: HF_TOKEN
+
+networks:
+  commitments:
+
+volumes:
+  caddy_data:
+  caddy_config:
