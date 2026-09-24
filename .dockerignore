@@ -1,0 +1,20 @@
+# Без этого файла в контекст сборки уезжает .venv (сотни мегабайт) и
+# тестовые wav — сборка становится втрое дольше на ровном месте.
+
+.venv/
+**/__pycache__/
+**/*.pyc
+
+# Аудиофикстуры и результаты прогонов: они нужны тестам, а не образу.
+backend/tests/fixtures/*.wav
+backend/tests/out/
+testset/*.wav
+
+.git/
+.gitignore
+docs/
+*.md
+
+.pytest_cache/
+.ruff_cache/
+.env

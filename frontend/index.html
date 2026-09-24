@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Зобов’язання з дзвінка</title>
+<!-- Иконка инлайном: лишний файл ради 404 в консоли заводить незачем. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2343c98a'/%3E%3Cpath d='M8 16.5l5.5 5.5L24 11' stroke='%2306120c' stroke-width='3.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar__title">
+    <h1>Зобов’язання з дзвінка</h1>
+    <p>Хто, що і до якого строку пообіцяв — з дослівною цитатою і таймкодом</p>
+  </div>
+  <div class="topbar__side">
+    <button id="btn-restart" class="btn btn--ghost" hidden>Новий файл</button>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ЭКРАН 1: загрузка -->
+  <section id="view-upload" class="view">
+    <div id="dropzone" class="dropzone" tabindex="0" role="button"
+         aria-label="Перетягніть аудіофайл або натисніть, щоб вибрати">
+      <div class="dropzone__icon" aria-hidden="true">&#9836;</div>
+      <p class="dropzone__lead">Перетягніть сюди запис дзвінка</p>
+      <p class="dropzone__sub">або</p>
+      <button type="button" id="btn-pick" class="btn btn--primary">Вибрати файл</button>
+      <input type="file" id="file-input" accept="audio/*,video/*,.wav,.mp3,.m4a,.ogg,.opus,.webm,.mp4" hidden>
+    </div>
+
+    <ul class="limits">
+      <li><span class="limits__k">Тривалість</span><span class="limits__v">до 3 хвилин</span></li>
+      <li><span class="limits__k">Спікерів</span><span class="limits__v">2</span></li>
+      <li><span class="limits__k">Мова запису</span><span class="limits__v">українська</span></li>
+      <li><span class="limits__k">Формати</span><span class="limits__v">wav, mp3, m4a, ogg, webm, mp4</span></li>
+    </ul>
+
+    <div id="file-card" class="filecard" hidden>
+      <div class="filecard__main">
+        <div class="filecard__name" id="file-name">—</div>
+        <div class="filecard__meta">
+          <span id="file-duration">тривалість визначається…</span>
+          <span class="dot">·</span>
+          <span id="file-size">—</span>
+        </div>
+        <!-- Прослухати запис ДО обробки: вона триває хвилини, і краще
+             переконатися, що залили потрібний файл. -->
+        <audio id="preview" class="filecard__audio" controls preload="metadata"></audio>
+
+        <!-- Точка відліку для відносних строків («завтра», «до вівторка»).
+             Порожнє поле — не біда: сервер візьме дату файлу. -->
+        <div class="recinput">
+          <label class="recinput__label" for="recorded-at">Дата запису</label>
+          <input type="date" id="recorded-at" class="recinput__field">
+          <span class="recinput__hint" id="recorded-at-hint">не вкажете — візьмемо дату файлу</span>
+        </div>
+
+        <div id="file-warning" class="filecard__warn" hidden></div>
+      </div>
+      <div class="filecard__actions">
+        <button type="button" id="btn-clear" class="btn btn--ghost">Прибрати</button>
+        <button type="button" id="btn-send" class="btn btn--primary">Обробити</button>
+      </div>
+    </div>
+
+    <p id="upload-error" class="error" hidden></p>
+  </section>
+
+  <!-- ЭКРАН 2: прогресс -->
+  <section id="view-progress" class="view" hidden>
+    <div class="progress">
+      <div class="progress__head">
+        <span id="progress-stage" class="progress__stage">Ставимо завдання в чергу…</span>
+        <span id="progress-pct" class="progress__pct">0%</span>
+      </div>
+      <div class="progress__track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress-bar-el">
+        <div id="progress-bar" class="progress__fill" style="width:0%"></div>
+      </div>
+      <div class="progress__sub">
+        <span id="progress-detail">—</span>
+        <span id="progress-elapsed" class="mono">0:00</span>
+      </div>
+      <ol class="stages" id="stages">
+        <li data-stage="ffmpeg">Готую аудіо</li>
+        <li data-stage="stt">Розпізнаю мовлення</li>
+        <li data-stage="diarization">Розділяю спікерів</li>
+        <li data-stage="llm">Витягую зобов’язання</li>
+        <li data-stage="validation">Перевіряю цитати</li>
+      </ol>
+      <p class="progress__note">Обробка трьох хвилин аудіо на CPU триває пару хвилин — це нормально, вкладку можна не чіпати.</p>
+    </div>
+  </section>
+
+  <!-- ЭКРАН 3: результат -->
+  <section id="view-result" class="view" hidden>
+    <div class="resulthead">
+      <div id="participants" class="participants"></div>
+      <div id="counters" class="counters"></div>
+    </div>
+
+    <div id="sections"></div>
+
+    <section class="metrics" id="metrics"></section>
+  </section>
+
+</main>
+
+<!-- Плеер -->
+<div id="player-bar" class="playerbar" hidden>
+  <div class="playerbar__inner">
+    <div class="playerbar__now">
+      <div class="playerbar__label" id="player-label">Плеєр готовий</div>
+      <div class="playerbar__quote" id="player-quote">Натисніть ▶ біля будь-якої цитати, щоб послухати цей фрагмент запису</div>
+    </div>
+    <div class="playerbar__controls">
+      <button type="button" id="btn-stop-segment" class="btn btn--ghost" hidden>Стоп</button>
+      <audio id="audio" controls preload="metadata"></audio>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

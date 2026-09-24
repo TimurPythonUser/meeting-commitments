@@ -1,0 +1,41 @@
+# Caddy перед приложением: HTTPS и пароль на демо-стенд.
+#
+# Домен 167-233-175-131.nip.io — сервис nip.io резолвит такое имя в
+# 167.233.175.131 без всякой регистрации. Нужен он только ради сертификата:
+# Let's Encrypt выдаёт их на домены, но не на голые IP.
+#
+# Пароль — не «аккаунт в продукте» (задание их не требует), а замок на
+# публичный стенд: без него любой, кто узнает адрес, будет гонять
+# распознавание за чужой счёт.
+
+167-233-175-131.nip.io {
+	basic_auth {
+		# bcrypt-хеш, подставляется при развёртывании
+		demo PASSWORD_HASH_PLACEHOLDER
+	}
+
+	# Обработка трёх минут аудио занимает минуты — дефолтных таймаутов мало.
+	reverse_proxy commitments:8000 {
+		transport http {
+			read_timeout 600s
+			write_timeout 600s
+		}
+	}
+
+	# Аудио отдаётся кусками по Range, сжимать его незачем.
+	encode {
+		gzip
+		match {
+			header Content-Type text/*
+			header Content-Type application/json*
+			header Content-Type application/javascript*
+		}
+	}
+
+	log {
+		output file /data/access.log {
+			roll_size 10mb
+			roll_keep 3
+		}
+	}
+}
